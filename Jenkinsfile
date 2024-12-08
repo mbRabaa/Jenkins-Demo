@@ -1,99 +1,41 @@
-pipeline {
-    agent any
+node {
+    def mvnHome = tool 'maven-3.5.2'
+    def dockerImage
+    def dockerImageTag = "mbrabaa2023/newapp-image:${env.BUILD_NUMBER}"  // Modification ici : nouveau nom de l'image "newapp-image"
+    def containerName = "newapp-container"  // Nouveau nom de conteneur "newapp-container"
 
-    environment {
-        // The MY_KUBECONFIG environment variable will be assigned
-        // the value of a temporary file.  For example:
-        //   /home/user/.jenkins/workspace/cred_test@tmp/secretFiles/546a5cf3-9b56-4165-a0fd-19e2afe6b31f/kubeconfig.txt
-        // MY_KUBECONFIG = credentials('my-kubeconfig')
-        registry = "wahidh007/demo-jenkins"
-        registryCredential = 'docker-hub-credentials'
-        dockerImage = ''        
+    stage('Clone Repo') {
+        git branch: 'main', url: 'https://github.com/wahid007/Jenkins-Demo.git'
     }
 
-
-    // tools {
-    //     // Install the Maven version configured as "M3" and add it to the path.
-    //     maven "M3"
-    // }
-
-    // Poll every 5 minutes, if there is a new code Jenkins will run the job
-    triggers {
-        pollSCM('*/5 * * * *')
+    stage('Build Project') {
+        sh "mvn clean package"
     }
 
-    stages {
-        stage('Clone Repo') {
-            steps {
-                git branch: 'main', url: 'https://github.com/wahid007/Jenkins-Demo.git'
-                // git 'https://github.com/wahid007/Jenkins-Demo'
-            }
-
-        }
-        
-        stage('Build App') {
-            steps {
-                sh "mvn clean package"
-            }
-        }
-        
-        stage('Build image') {
-          steps{
-              // sh "docker build -t $registry:$BUILD_NUMBER ."
-              script {
-                dockerImage = docker.build registry + ":$BUILD_NUMBER"   
-              }          
-          }
-        }       
-
-        // // Add docker hub credentials in Jenkins : Go to Credentials → Global → Add credentials 
-        // stage('Push image') {
-        //   steps{
-        //     script {
-        //       // docker.withRegistry('https://registry.hub.docker.com', registryCredential) {
-        //       docker.withRegistry('', registryCredential ) {
-        //         dockerImage.push()
-        //       }
-        //     }
-        //   }
-        // }
-
-        stage('Deploy Docker container'){
-          steps {
-            // sh "docker stop ${IMAGE_NAME} || true && docker rm $registry:$BUILD_NUMBER || true"
-            sh "docker run --name demo-jenkins -d -p 2222:2222 $registry:$BUILD_NUMBER"
-            slackSend color: "good", message: registry + ":$BUILD_NUMBER" + " - image successfully created! :man_dancing:"
-          }
-        }
-
-        // stage('Deploy K8S'){
-        //   steps {
-        //     sh "kubectl apply -f k8s.yml"
-        //   }
-        // }
-
-        // stage('Verify deployment'){
-        //   steps {
-        //     sh "kubectl get pods"
-        //     sh "kubectl get svc"
-        //   }
-        // }
-
-        // stage('Cleaning up') {
-        //   steps{
-        //     sh "docker rmi $registry:$BUILD_NUMBER"
-        //   }
-        // }        
+    stage('Initialize Docker') {
+        def dockerHome = tool 'MyDocker'
+        env.PATH = "${dockerHome}/bin:${env.PATH}"
     }
-    
-    post {
-        success {
-            echo 'Pipeline execution successful!'
-            slackSend color: "good", message: "Pipeline execution successful! :man_dancing:"
+
+    stage('Build Docker Image') {
+        sh "docker build -t ${dockerImageTag} ."
+    }
+
+    stage('Login to DockerHub') {
+        withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+            sh "echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin"
         }
-        failure {
-            echo 'Pipeline execution failed.'
-            slackSend color: "danger", message: "Pipeline execution failed! :ghost:"
-        }
-    }    
+    }
+
+    stage('Deploy Docker Image') {
+        echo "Docker Image Tag Name: ${dockerImageTag}"
+        // Utilisation du nouveau nom de conteneur
+        sh "docker run --name ${containerName} -d -p 2222:2222 ${dockerImageTag}"
+    }
+
+    stage('Push Docker Image to DockerHub') {
+        echo "Pushing Docker image to DockerHub"
+        sh "docker push ${dockerImageTag}"
+    }
 }
+ "modification de non d'image et de nom contenaire"
