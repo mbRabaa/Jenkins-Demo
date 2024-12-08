@@ -12,10 +12,11 @@ node {
         sh "mvn clean package"
     }
 
-    stage('Initialize Docker') {
-        def dockerHome = tool 'MyDocker'
-        env.PATH = "${dockerHome}/bin:${env.PATH}"
-    }
+    // Stage 'Initialize Docker' a été complètement supprimé
+    // stage('Initialize Docker') {
+    //     def dockerHome = tool 'MyDocker'
+    //     env.PATH = "${dockerHome}/bin:${env.PATH}"
+    // }
 
     stage('Build Docker Image') {
         sh "docker build -t ${dockerImageTag} ."
@@ -39,4 +40,4 @@ node {
     }
 }
 
-"Modification du Jenkinsfile pour modifier le nom d'image et le nom  de conteneur"
+"Modification du Jenkinsfile pour annuler l'initialisation de docker"
