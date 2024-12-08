@@ -5,6 +5,7 @@ pipeline {
         registry = "wahidh007/demo-jenkins"
         registryCredential = 'docker-hub-credentials'
         dockerImage = ''        
+        CONTAINER_NAME = 'demo-jenkins'
     }
 
     triggers {
@@ -25,19 +26,34 @@ pipeline {
         }
         
         stage('Build image') {
-            steps{
-                script {
-                    dockerImage = docker.build registry + ":$BUILD_NUMBER"   
-                }          
-            }
-        }
+          steps {
+              script {
+                dockerImage = docker.build registry + ":$BUILD_NUMBER"
+              }
+          }
+        }       
 
-        stage('Deploy Docker container'){
-            steps {
-                sh "docker run --name demo-jenkins -d -p 2222:2222 $registry:$BUILD_NUMBER"
-                // Slack notification is removed or commented out
-                // slackSend color: "good", message: registry + ":$BUILD_NUMBER" + " - image successfully created! :man_dancing:"
+        stage('Deploy Docker container') {
+          steps {
+            script {
+                // Vérifier si un conteneur avec le même nom existe
+                def existingContainer = sh(script: "docker ps -a -q -f name=${CONTAINER_NAME}", returnStdout: true).trim()
+
+                // Si un conteneur est trouvé, on l'arrête et on le supprime
+                if (existingContainer) {
+                    echo "Conteneur existant trouvé : ${existingContainer}. Arrêt et suppression en cours..."
+                    sh "docker stop ${existingContainer}"
+                    sh "docker rm ${existingContainer}"
+                }
+
+                // Lancer le nouveau conteneur
+                echo "Lancement du nouveau conteneur Docker..."
+                sh "docker run --name ${CONTAINER_NAME} -d -p 2222:2222 ${registry}:${BUILD_NUMBER}"
+
+                // Envoi du message Slack pour indiquer le succès du déploiement
+                slackSend color: "good", message: "${registry}:${BUILD_NUMBER} - Image successfully created and deployed! :man_dancing:"
             }
+          }
         }
 
     }
@@ -45,13 +61,12 @@ pipeline {
     post {
         success {
             echo 'Pipeline execution successful!'
-            // Slack notification is removed or commented out
-            // slackSend color: "good", message: "Pipeline execution successful! :man_dancing:"
+            slackSend color: "good", message: "Pipeline execution successful! :man_dancing:"
         }
         failure {
             echo 'Pipeline execution failed.'
-            // Slack notification is removed or commented out
-            // slackSend color: "danger", message: "Pipeline execution failed! :ghost:"
+            slackSend color: "danger", message: "Pipeline execution failed! :ghost:"
         }
-    }    
+    }
 }
+"Modification du Jenkinsfile pour gérer le conflit de conteneur"
