@@ -12,12 +12,6 @@ node {
         sh "mvn clean package"
     }
 
-    // Stage 'Initialize Docker' a été complètement supprimé
-    // stage('Initialize Docker') {
-    //     def dockerHome = tool 'MyDocker'
-    //     env.PATH = "${dockerHome}/bin:${env.PATH}"
-    // }
-
     stage('Build Docker Image') {
         sh "docker build -t ${dockerImageTag} ."
     }
@@ -30,7 +24,9 @@ node {
 
     stage('Deploy Docker Image') {
         echo "Docker Image Tag Name: ${dockerImageTag}"
-        // Utilisation du nouveau nom de conteneur
+        // Supprimer l'ancien conteneur s'il existe
+        sh "docker rm -f ${containerName} || true"
+        // Démarrer un nouveau conteneur
         sh "docker run --name ${containerName} -d -p 2222:2222 ${dockerImageTag}"
     }
 
@@ -39,5 +35,6 @@ node {
         sh "docker push ${dockerImageTag}"
     }
 }
+
 
 "Modification du Jenkinsfile pour annuler l'initialisation de docker"
