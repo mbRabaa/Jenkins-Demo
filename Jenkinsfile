@@ -1,72 +1,42 @@
-pipeline {
-    agent any
+node {
+    def mvnHome = tool 'maven-3.5.2'
+    def dockerImage
+    def dockerImageTag = "mbrabaa2023/newapp-image:${env.BUILD_NUMBER}"  // Modification ici : nouveau nom de l'image "newapp-image"
+    def containerName = "newapp-container"  // Nouveau nom de conteneur "newapp-container"
 
-    environment {
-        registry = "wahidh007/demo-jenkins"
-        registryCredential = 'docker-hub-credentials'
-        dockerImage = ''        
-        CONTAINER_NAME = 'demo-jenkins'
+    stage('Clone Repo') {
+        git branch: 'main', url: 'https://github.com/wahid007/Jenkins-Demo.git'
     }
 
-    triggers {
-        pollSCM('*/5 * * * *')
+    stage('Build Project') {
+        sh "mvn clean package"
     }
 
-    stages {
-        stage('Clone Repo') {
-            steps {
-                git branch: 'main', url: 'https://github.com/wahid007/Jenkins-Demo.git'
-            }
-        }
-        
-        stage('Build App') {
-            steps {
-                sh "mvn clean package"
-            }
-        }
-        
-        stage('Build image') {
-          steps {
-              script {
-                dockerImage = docker.build registry + ":$BUILD_NUMBER"
-              }
-          }
-        }       
-
-        stage('Deploy Docker container') {
-          steps {
-            script {
-                // Vérifier si un conteneur avec le même nom existe
-                def existingContainer = sh(script: "docker ps -a -q -f name=${CONTAINER_NAME}", returnStdout: true).trim()
-
-                // Si un conteneur est trouvé, on l'arrête et on le supprime
-                if (existingContainer) {
-                    echo "Conteneur existant trouvé : ${existingContainer}. Arrêt et suppression en cours..."
-                    sh "docker stop ${existingContainer}"
-                    sh "docker rm ${existingContainer}"
-                }
-
-                // Lancer le nouveau conteneur
-                echo "Lancement du nouveau conteneur Docker..."
-                sh "docker run --name ${CONTAINER_NAME} -d -p 2222:2222 ${registry}:${BUILD_NUMBER}"
-
-                // Envoi du message Slack pour indiquer le succès du déploiement
-                slackSend color: "good", message: "${registry}:${BUILD_NUMBER} - Image successfully created and deployed! :man_dancing:"
-            }
-          }
-        }
-
+    stage('Initialize Docker') {
+        def dockerHome = tool 'MyDocker'
+        env.PATH = "${dockerHome}/bin:${env.PATH}"
     }
 
-    post {
-        success {
-            echo 'Pipeline execution successful!'
-            slackSend color: "good", message: "Pipeline execution successful! :man_dancing:"
+    stage('Build Docker Image') {
+        sh "docker build -t ${dockerImageTag} ."
+    }
+
+    stage('Login to DockerHub') {
+        withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+            sh "echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin"
         }
-        failure {
-            echo 'Pipeline execution failed.'
-            slackSend color: "danger", message: "Pipeline execution failed! :ghost:"
-        }
+    }
+
+    stage('Deploy Docker Image') {
+        echo "Docker Image Tag Name: ${dockerImageTag}"
+        // Utilisation du nouveau nom de conteneur
+        sh "docker run --name ${containerName} -d -p 2222:2222 ${dockerImageTag}"
+    }
+
+    stage('Push Docker Image to DockerHub') {
+        echo "Pushing Docker image to DockerHub"
+        sh "docker push ${dockerImageTag}"
     }
 }
-"Modification du Jenkinsfile pour gérer le conflit de conteneur"
+
+"Modification du Jenkinsfile pour modifier le nom d'image et le nom  de conteneur"
